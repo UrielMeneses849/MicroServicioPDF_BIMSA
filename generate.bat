@@ -5,7 +5,6 @@ echo ===============================
 echo BIMSA PDF GENERATOR
 echo ===============================
 
-REM Recibir parametro
 set claves=%1
 
 IF "%claves%"=="" (
@@ -15,7 +14,7 @@ IF "%claves%"=="" (
 
 echo Claves recibidas: %claves%
 
-REM Construir JSON dinámico
+REM Construir JSON limpio
 set json={"obras":[
 
 for %%a in (%claves%) do (
@@ -23,18 +22,21 @@ for %%a in (%claves%) do (
 )
 
 set json=!json:~0,-1!]}
-echo JSON: !json!
+
+echo !json! > request.json
+
+echo JSON generado:
+type request.json
 
 REM Levantar docker
 docker compose up -d
 
-REM Esperar a que el server esté listo
 timeout /t 5 >nul
 
-REM Llamar API
+REM 🔥 USAR ARCHIVO EN VEZ DE STRING
 curl -X POST http://localhost:3000/generate ^
 -H "Content-Type: application/json" ^
--d "!json!"
+--data-binary @request.json
 
 echo ===============================
 echo PDFs generados en /output
