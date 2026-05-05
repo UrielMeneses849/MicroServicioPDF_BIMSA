@@ -5,7 +5,7 @@ echo ===============================
 echo BIMSA PDF GENERATOR
 echo ===============================
 
-set claves=%1
+set claves=%*
 
 IF "%claves%"=="" (
     echo ❌ No se enviaron claves
