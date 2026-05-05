@@ -1,0 +1,60 @@
+<ROOT>
+  <OBRAS>
+    <proy_clave>OC999999</proy_clave>
+    <proy_fechacierre>2025-02-24</proy_fechacierre>
+    <proy_descripcioncorta>Proyecto de Prueba Integral BIMSA</proy_descripcioncorta>
+    <proy_inversion>12500000.0000</proy_inversion>
+    <proy_localizacion>AV. REFORMA 123, CDMX, MEXICO</proy_localizacion>
+    <proy_codigopostal>06000</proy_codigopostal>
+    <proy_colonia>CENTRO</proy_colonia>
+    <proy_fechainicio>2025-03-01</proy_fechainicio>
+    <proy_fechatermino>2025-09-01</proy_fechatermino>
+    <proy_etapa>PRE-INICIO</proy_etapa>
+    <proy_superficie_construida>850.0000</proy_superficie_construida>
+    <proy_sectordescripcion>PRIVADO</proy_sectordescripcion>
+    <proy_descripcionlarga>Proyecto de prueba para validar el renderizado completo de fichas técnicas en entorno Docker.</proy_descripcionlarga>
+
+    <tiob_descripcion>EDIFICACION COMERCIAL</tiob_descripcion>
+    <suge_descripcion>COMERCIAL</suge_descripcion>
+    <gene_descripcion>EDIFICACION</gene_descripcion>
+    <desa_descripcion>OBRA NUEVA</desa_descripcion>
+
+    <esta_descripcion>CIUDAD DE MEXICO</esta_descripcion>
+    <muni_descripcion>CUAUHTEMOC</muni_descripcion>
+
+    <proy_tipoproyectodescripcion>Proyecto contratado</proy_tipoproyectodescripcion>
+
+    <caracteristicas>CIMENTACION: Profunda. ESTRUCTURA: Acero. LOSA: Concreto.</caracteristicas>
+    <descripcionextra>Proyecto piloto para pruebas internas.</descripcionextra>
+    <acabados>Pisos de mármol, pintura vinílica, fachada de vidrio.</acabados>
+    <observaciones>Este proyecto es únicamente para pruebas.</observaciones>
+
+    <CIAS>
+      <CIA>
+        <comp_razon_social>CONSTRUCTORA DEMO SA DE CV</comp_razon_social>
+        <sucu_calle>AV. INSURGENTES 456</sucu_calle>
+        <sucu_telefono1>5551234567</sucu_telefono1>
+        <roco_descripcion>CONTRATISTA GENERAL</roco_descripcion>
+
+        <CONTACTOS>
+          <CONTACTO>
+            <cont_puesto>GERENTE DE COMPRAS</cont_puesto>
+            <cont_nombre>JUAN</cont_nombre>
+            <cont_paterno>PEREZ</cont_paterno>
+            <cont_materno>LOPEZ</cont_materno>
+            <cont_email>juan.perez@demo.com</cont_email>
+          </CONTACTO>
+
+          <CONTACTO>
+            <cont_puesto>JEFE DE OBRA</cont_puesto>
+            <cont_nombre>MARIA</cont_nombre>
+            <cont_paterno>GOMEZ</cont_paterno>
+            <cont_materno>RAMIREZ</cont_materno>
+            <cont_email>maria.gomez@demo.com</cont_email>
+          </CONTACTO>
+        </CONTACTOS>
+      </CIA>
+    </CIAS>
+
+  </OBRAS>
+</ROOT>

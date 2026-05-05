@@ -1,0 +1,974 @@
+<?php
+mb_internal_encoding("UTF-8");
+/**
+ * 
+ *
+ * Description: Muestra la ficha individual de una obra
+ *
+ * @package WordPress
+ * @subpackage undestrap-child
+ * @since Construleads 1.0
+ */
+$isPDF = false;
+
+function formatText($text) {
+    $text = mb_strtolower($text, 'UTF-8');
+
+    // conectores en minúsculas
+    $conectores = ['de', 'del', 'la', 'las', 'el', 'los', 'y', 'e', 'en', 'a', 'con', 'por', 'para'];
+
+    $words = explode(' ', $text);
+
+    foreach ($words as $index => $word) {
+
+        // Primera palabra SIEMPRE capitalizada
+        if ($index === 0) {
+            $words[$index] = mb_strtoupper(mb_substr($word, 0, 1), 'UTF-8') . mb_substr($word, 1);
+            continue;
+        }
+
+        // Si es conector → minúscula
+        if (in_array($word, $conectores)) {
+            $words[$index] = $word;
+        } else {
+            $words[$index] = mb_strtoupper(mb_substr($word, 0, 1), 'UTF-8') . mb_substr($word, 1);
+        }
+    }
+
+    return implode(' ', $words);
+}
+
+function formatSentence($text) {
+    if (!$text) return '';
+    $text = mb_strtolower($text, 'UTF-8');
+    return mb_strtoupper(mb_substr($text, 0, 1), 'UTF-8') . mb_substr($text, 1);
+}
+
+
+libxml_use_internal_errors(true);
+
+
+// 1. Modo tradicional (navegador)
+if (isset($_GET['pdf']) && $_GET['pdf'] == 1) {
+    $isPDF = true;
+}
+
+// 2. Modo microservicio (Puppeteer)
+if (isset($_SERVER['HTTP_X_RENDER_PDF']) && $_SERVER['HTTP_X_RENDER_PDF'] === 'true') {
+    $isPDF = true;
+}
+
+// 🔥 MODO XML
+if (
+
+    isset($_SERVER['HTTP_X_XML']) || 
+
+    strpos($_SERVER['CONTENT_TYPE'] ?? '', 'xml') !== false
+
+) {
+$rawXML = file_get_contents("php://input");
+
+// 🔥 fallback extremo (WordPress hack)
+if (empty($rawXML)) {
+    $rawXML = isset($GLOBALS['HTTP_RAW_POST_DATA']) ? $GLOBALS['HTTP_RAW_POST_DATA'] : '';
+}
+
+    if (!$rawXML) {
+        echo "❌ No llegó XML en POST";
+        exit;
+    }
+
+    libxml_use_internal_errors(true);
+    $xml = simplexml_load_string($rawXML);
+
+    if (!$xml || !isset($xml->OBRAS)) {
+        echo "❌ XML inválido o sin OBRAS";
+        exit;
+    }
+
+    $data = $xml->OBRAS;
+
+    $cias = [];
+
+if (isset($data->CIAS->CIA)) {
+    foreach ($data->CIAS->CIA as $cia) {
+
+        $contactos = [];
+
+        if (isset($cia->CONTACTOS->CONTACTO)) {
+            foreach ($cia->CONTACTOS->CONTACTO as $cont) {
+                $contactos[] = [
+                    'nombre' => formatText(trim(
+                        (string)$cont->cont_nombre . ' ' .
+                        $cont->cont_paterno . ' ' .
+                        $cont->cont_materno
+                    )),
+                    'puesto' => formatText((string)$cont->cont_puesto),
+                    'email' => (string)$cont->cont_email
+                ];
+            }
+        }
+
+        $cias[] = [
+            'nombre' => formatText((string)$cia->comp_razon_social),
+            'rol' => formatText((string)$cia->roco_descripcion),
+            'direccion' => formatText((string)$cia->sucu_calle),
+            'telefono' => (string)$cia->sucu_telefono1,
+            'contactos' => $contactos
+        ];
+    }
+}
+
+
+    // 🔥 AQUÍ ARMAS $obra COMPLETO
+    $obra = [
+        'proy_nombre' => (string)($data->proy_descripcioncorta ?? ''),
+        'proy_clave' => (string)($data->proy_clave ?? ''),
+        'proy_tipoproyectodescripcion' => (string)($data->proy_tipoproyectodescripcion ?? ''),
+        'proy_localizacion' => (string)($data->proy_localizacion ?? ''),
+        'proy_inversion' => (string)($data->proy_inversion ?? ''),
+        'proy_fechacierre' => (string)($data->proy_fechacierre ?? ''),
+        'proy_etapa' => (string)($data->proy_etapa ?? ''),
+        'proy_fecha_inicio' => (string)$data->proy_fechainicio,
+        'proy_fecha_fin' => (string)$data->proy_fechatermino,
+        'esta_descripcion' => (string)($data->esta_descripcion ?? ''),
+        'muni_descripcion' => (string)($data->muni_descripcion ?? ''),
+
+        // 🔥 IMPORTANTES PARA QUE NO TRUENE
+        'gene_descripcion' => (string)($data->gene_descripcion ?? ''),
+
+        'acabados' => (string)($data->acabados ?? ''),
+        'caracteristicas' => (string)($data->caracteristicas ?? ''),
+        'descripcionextra' => (string)($data->descripcionextra ?? ''),
+        'descripcion' => (string)($data->proy_descripcionlarga ?? ''),
+        'observaciones' => (string)($data->observaciones ?? ''),
+        
+        'proy_codigopostal' => (string)($data->proy_codigopostal ?? ''),
+        'proy_colonia' => (string)($data->proy_colonia ?? ''),
+
+        // extras
+        'genero' => (string)($data->gene_descripcion ?? ''),
+        'subgenero' => (string)($data->suge_descripcion ?? ''),
+        'sector' => (string)($data->proy_sectordescripcion ?? ''),
+        'tipo_obra' => (string)($data->tiob_descripcion ?? ''),
+        'superficie' => (string)($data->proy_superficie_construida ?? ''),
+        'desa_descripcion' => (string)($data->desa_descripcion ?? ''),
+
+        'cias_normalizadas' => $cias
+
+        
+    ];
+
+    $isPDF = true;
+}
+
+// 3. (Opcional) ejecución por CLI
+if (php_sapi_name() === 'cli') {
+    $isPDF = true;
+}
+function is_utf8($str) {
+    return (bool) preg_match('//u', $str);
+}
+
+
+// 🔥 Soporte para URL normal + microservicio
+if (isset($_GET['claveProyecto'])) {
+
+    $claveObra = preg_replace('/cl--/', '', base64_decode($_GET['claveProyecto']));
+
+} elseif (isset($_GET['clave'])) {
+
+    // 🔥 Para Puppeteer o pruebas simples
+    $claveObra = $_GET['clave'];
+
+} else {
+
+    $claveObra = 'OC310160-2';
+
+}
+if (!isset($obra) || empty($obra)) {
+    echo "❌ No se pudo construir la obra desde el XML";
+    exit;
+}
+
+// FIN AJUSTE 3
+
+$colorFuente = '';
+
+$gene = $obra['gene_descripcion'] ?? '';
+
+if ($gene == 'VIVIENDA') {
+    $colorFuente = '#ee56f0';
+} elseif ($gene == 'INDUSTRIAL') {
+    $colorFuente = '#358fff';
+} elseif ($gene == 'EDIFICACION') {
+    $colorFuente = '#ee6f3c';
+} elseif ($gene == 'INFRAESTRUCTURA') {
+    $colorFuente = '#10d42b';
+}
+
+$caracteristicas = preg_replace('[,|\.]', '<br>', $obra['caracteristicas'] ?? '');
+if (is_array($obra['caracteristicas'])) {
+    $caracteristicas = implode('<br>', $obra['caracteristicas']);
+}
+
+$acabados = preg_replace('[,]', '<br>', $obra['acabados'] ?? '');
+if (is_array($obra['acabados'])) {
+    $acabados = implode('<br>', $obra['acabados']);
+}
+
+$cp = is_array($obra['proy_codigopostal']) ? '' : ($obra['proy_codigopostal'] ?? '');
+$colonia = is_array($obra['proy_colonia']) ? '' : ($obra['proy_colonia'] ?? '');
+?>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+    body{
+font-family: 'Poppins', sans-serif !important;
+  }
+@media print {
+
+<?php if ($isPDF): ?>
+footer {
+  display: none !important;
+}
+
+.site-footer {
+  display: none !important;
+}
+
+#colophon {
+  display: none !important;
+}
+<?php endif; ?>
+
+  .no-break {
+
+    white-space: nowrap;
+
+  }
+
+  /* 💰 Inversión */
+
+  .pdf-fix-money {
+
+    font-size: 14px !important;
+
+    white-space: nowrap;
+
+  }
+
+  /* 📅 Fechas */
+
+  .pdf-fix-date {
+
+    font-size: 13px !important;
+
+    white-space: nowrap;
+
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    zoom: 1.15; /* 🔥 antes 0.95 → ahora más grande */
+  }
+
+  .container {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .row {
+    margin: 0 !important;
+  }
+
+  .info-result {
+    padding: 0 !important;
+  }
+
+  
+}
+
+.empresa-card {
+  page-break-inside: avoid;
+}
+</style>
+<div style="max-width:1200px; margin:0 auto;">
+  
+<div class="row mt-3 ">
+
+      <div class="col-12">
+
+        <div class="container my-2" style="width:100%;
+  <?php echo $isPDF ? 'padding-top:12px;' : ''; ?>
+">
+
+<div class="row" style="
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  width:100%;
+">
+
+  <!-- LOGO -->
+<div class="col-md-6" style="
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  text-align:right;
+">
+
+<img src="data:image/png;base64,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"
+  style="
+    height:70px;
+    display:block;
+    object-fit:contain;
+  "
+>
+  </div>
+  <!-- INFO DERECHA -->
+<div class="col-md-6" style="
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:flex-end;
+  text-align:right;
+  <?php echo $isPDF ? 'margin-top:20px;' : ''; ?>
+">
+
+    <h2 style="
+      font-size:22px;
+      font-weight:400;
+      margin-bottom:5px;
+    ">
+      Ficha Técnica del Proyecto
+    </h2>
+
+    <p style="
+      font-size:14px;
+      margin-bottom:10px;
+    ">
+      Fecha de publicación: 
+      <?php echo isset($obra['proy_fechacierre']) ? $obra['proy_fechacierre'] : '' ?>
+    </p>
+
+    <div style="
+      display:flex; 
+      justify-content:flex-end; 
+      gap:8px;
+    ">
+
+      <!-- BADGE NARANJA -->
+      <span style="
+        background:#FD4900;
+        color:#ffffff;
+        padding:6px 12px;
+        border-radius:8px;
+        font-size:13px;
+        display:inline-block;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      ">
+        <?php echo formatText($obra['proy_tipoproyectodescripcion'] ?? '') ?>
+      </span>
+
+      <!-- BADGE GRIS -->
+      <span style="
+        background:#e5e7eb;
+        color:#374151;
+        padding:6px 12px;
+        border-radius:8px;
+        font-size:13px;
+      ">
+        <?php echo isset($obra['proy_clave']) ? $obra['proy_clave'] : '' ?>
+      </span>
+
+    </div>
+
+</div>
+</div>
+          <div class="row mb-4 <?php echo strtolower( $obra['gene_descripcion'] ?? '' ); ?> template-resultados">
+            <div class="info-result p-2" style="width: 100%;">
+
+              <div class="row txt-gris">
+
+                <div class="col-12">
+            
+                  <!-- Descripción -->
+                  <br class="clearfix"/>
+
+<!-- NUEVO BLOQUE INFO GENERAL (REDISEÑO PRO) -->
+<div style="margin:0 auto;">
+
+<div style="
+  border-radius:20px;
+  padding:20px;
+  border:1px solid rgba(110,116,130,0.2);
+  border-left:6px solid #FD4900;
+">
+
+    <!-- HEADER E INFORMACIÓN PRINCIPAL -->
+    <div style="
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:16px;
+    ">
+
+      <h3 style="
+        font-size:22px;
+        font-weight:300;
+        color:#374151;
+        margin:0;
+        padding-left: 12px;
+      ">
+        Información General
+      </h3>
+
+      <div style="
+        border:1px solid #FD4900;
+        color:#FD4900;
+        padding:6px 14px;
+        border-radius:999px;
+        font-size:12px;
+        font-weight:400;
+        background:#FFF7ED;
+      ">
+        Etapa: <?php echo formatText($obra['proy_etapa'] ?? ''); ?>
+      </div>
+
+    </div>
+
+    <!-- GRID PRINCIPAL -->
+    <div style="
+      display:grid;
+      grid-template-columns:2fr 1fr;
+      gap:16px;
+    ">
+
+      <!-- IZQUIERDA -->
+      <div>
+
+        <!-- NOMBRE DEL PROYECTO-->
+        <div style="
+          background:#F9FAFB;
+          padding:14px;
+          border-radius:12px;
+          margin-bottom:12px;
+        ">
+          <div style="font-size:14px; font-weight:300;">
+            Nombre del proyecto:
+          </div>
+
+          <div style="
+            font-weight:400;
+            font-size:14px;
+          ">
+            <?php echo $obra['proy_nombre'] ?? '' ?>
+          </div>
+        </div>
+
+        <!-- FECHAS + TAGS -->
+        <div style="
+          display:grid;
+          grid-template-columns:1fr 0.5fr 0.5fr;
+          gap:10px;
+        ">
+
+          <!-- FECHAS -->
+          <div style="
+            background:#F9FAFB;
+            border-radius:12px;
+            padding:12px;
+            width:100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 8px;
+          ">
+            <div style="display: flex; gap:40px;">
+            <div style="font-size:14px; font-weight:300; white-space: nowrap;">
+              Fecha Inicio Probable
+            </div>
+            <div class="pdf-fix-date" style="font-size:14px; font-weight:400; width:100%;">
+              <?php echo $obra['proy_fecha_inicio'] ?? '' ?>
+            </div>
+            </div>
+
+            <div style="display: flex; gap:24px;">
+            <div style="font-size:14px; font-weight:300; white-space: nowrap;">
+              Fecha Termino Probable
+            </div>
+            <div class="pdf-fix-date" style="font-size:14px; font-weight:400; width:100%;">
+              <?php echo $obra['proy_fecha_fin'] ?? '' ?>
+            </div>
+            </div>
+          </div>
+
+          <!-- GENERO -->
+          <div style="
+            background:#F9FAFB;
+            border-radius:12px;
+            padding:10px;
+            display:flex;
+            gap:6px;
+            justify-content:center;
+            align-items:center;
+            flex-direction:column;
+          ">
+
+            <div style="
+              font-size:14px;
+            ">
+              Genero
+            </div>
+
+            <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+
+              <span style="
+                border:1px solid #FD4900;
+                color:#FD4900;
+                padding:2px 8px;
+                border-radius:999px;
+                font-size:14px;
+              ">
+                <?php echo formatText($obra['genero'] ?? '') ?>
+              </span>
+            </div>
+          </div>
+          
+          <!-- SUB -->
+          <div style="
+            background:#F9FAFB;
+            border-radius:12px;
+            padding:10px;
+            display:flex;
+            gap:6px;
+            justify-content:center;
+            align-items:center;
+            flex-direction:column;
+          ">
+
+            <div style="
+              font-size:14px;
+            ">
+             Subgenero
+            </div>
+
+            <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+
+              <span style="
+                border:1px solid #FD4900;
+                color:#FD4900;
+                padding:2px 8px;
+                border-radius:999px;
+                font-size:14px;
+              ">
+                <?php echo formatText($obra['subgenero'] ?? '') ?>
+              </span>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- UBICACIÓN -->
+<div style="
+  margin-top:12px;
+  background:#F9FAFB;
+  border-radius:16px;
+  padding:16px 12px;
+">
+
+  <!-- HEADER -->
+  <div style="
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:10px;
+  ">
+
+    <!-- TÍTULO DE DIRECCION -->
+    <h3 style="
+      font-size:18px;
+      font-weight:300;
+      margin:0;
+    ">
+      Ubicación del proyecto
+    </h3>
+
+    <!-- ESTADO / MUNICIPIO -->
+    <div style="
+      text-align:right;
+      font-size:14px;
+      line-height:1.4;
+      display:flex;
+      gap: 16px;
+      font-weight:300; 
+    ">
+
+      <div>
+        <span>Estado:</span>
+        <?php echo formatText($obra['esta_descripcion'] ?? '') ?>
+      </div>
+
+      <div>
+        <span>Municipio:</span>
+        <?php echo formatText($obra['muni_descripcion'] ?? '') ?>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- DIRECCIÓN -->
+  <div style="
+    font-size:14px;
+    color:#374151;
+    line-height:1.5;
+  ">
+    <?php echo formatText($obra['proy_localizacion'] ?? '') ?>
+  </div>
+
+</div>
+
+      </div>
+
+      <!-- LADO DERECHO -->
+      <div style="
+        background:#F9FAFB;
+        border-radius:12px;
+        padding:14px;
+        align-content: center;
+      ">
+
+        <!-- INVERSIÓN -->
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          margin-bottom:32px;
+        ">
+
+          <div style="display:flex; align-items:center; gap:6px;">
+            <div style="
+              width:28px;
+              height:28px;
+              border-radius:50%;
+              background:#FFF7ED;
+              border:1px solid #FD4900;
+              display:flex;
+              align-items:center;
+              justify-content:center;
+              color:#FD4900;
+              font-weight:bold;
+            ">
+              $
+            </div>
+
+            <span style="font-weight:300; font-size:18px;">
+              Inversión:
+            </span>
+          </div>
+
+          <span class="pdf-fix-money" style="font-weight:300; font-size:18px;">
+            MXN $<?php echo number_format((float)($obra['proy_inversion'] ?? 0), 0, '.', ',') ?>
+          </span>
+
+        </div>
+
+        <!-- DATOS de inversion y obra -->
+        <div style="
+          display:flex;
+          flex-direction:column;
+          gap:24px;
+          font-size:14px;
+          font-weight:300;
+        ">
+
+          <div>
+            <strong>Superficie construida:</strong>
+            <?php echo number_format((float)($obra['superficie'] ?? 0), 0) ?> m²
+          </div>
+
+          <div>
+            <strong>Sector:</strong>
+            <?php echo formatText($obra['sector'] ?? '') ?>
+          </div>
+
+          <div>
+            <strong>Tipo de obra:</strong>
+            <?php echo formatText($obra['tipo_obra'] ?? '') ?>
+          </div>
+
+          <div>
+            <strong>Tipo de desarrollo:</strong>
+            <?php echo formatText($obra['desa_descripcion'] ?? '') ?>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+<!-- /NUEVO BLOQUE -->
+
+
+
+
+
+<div style="margin:0 auto; margin-top:20px;
+            border-radius:20px; padding:20px; border:1px solid rgba(110,116,130,0.2);">
+
+
+  <!-- TITLE COMPAÑIAS -->
+  <h3 style="
+    font-size:22px;
+    font-weight:300;
+    margin-bottom:12px;
+    padding-left: 12px;
+  ">
+    Compañías
+  </h3>
+  <!-- MAPEO DE  COMPAÑIAS -->
+  <?php
+  if (!isset($obra['cias_normalizadas'])) {
+    $obra['cias_normalizadas'] = [
+      [
+        'nombre' => $obra['comp_razon_social'] ?? '',
+        'rol' => $obra['proy_descripcionlarga'] ?? 'Empresa',
+        'direccion' => $obra['proy_localizacion'] ?? '',
+        'telefono' => '',
+        'contactos' => [
+          [
+            'puesto' => $obra['cont_puesto'] ?? '',
+            'nombre' => $obra['cont_nombre'] ?? '',
+            'email' => $obra['cont_email'] ?? ''
+          ]
+        ]
+      ]
+    ];
+  }
+
+  $cias = $obra['cias_normalizadas'];
+  if (!is_array($cias)) $cias = [$cias];
+  ?>
+
+
+  <!-- ================= COMPAÑÍAS REDISEÑO ================= -->
+
+<?php 
+$totalCias = count($cias);
+foreach ($cias as $cia): ?>
+
+<div style="
+
+  padding:12px;
+
+  margin-bottom:<?php echo ($totalCias > 1) ? '32px' : '0px'; ?>;
+
+">
+
+<!-- CAMBIO EN LOS CONTACTOS-->
+ <!-- HEADER CORRECTO -->
+<div style="
+  display:grid;
+  grid-template-columns:1.3fr 2fr;
+  align-items:center;
+  margin-bottom:16px;
+  column-gap:16px;
+">
+
+  <!-- IZQUIERDA: Nombre + línea -->
+  <div style="
+    display:flex;
+    align-items:center;
+    gap:10px;
+  ">
+    <div style="font-weight:300; font-size:16px;">
+      <?php echo formatText($cia['nombre']); ?>
+    </div>
+
+    <div style="flex:1; height:1px; background:#E5E7EB;"></div>
+  </div>
+
+  <!-- DERECHA: CONTACTOS alineado -->
+  <div style="
+    font-size:13px;
+    color:#6B7280;
+    padding-left:4px;
+  ">
+    Contactos
+  </div>
+</div>
+<!-- CAMBIO EN LOS CONTACTOS-->
+
+
+  <!-- CONTENIDO -->
+  <div style="
+    display:grid;
+    grid-template-columns:1.3fr 2fr;
+    gap:16px;
+  ">
+
+    <!-- INFO -->
+    <div style="
+      display:grid;
+      grid-template-columns:100px 1fr;
+      gap:6px 10px;
+      font-size:13px;
+    ">
+
+      <span style="font-weight:300; font-size:14px;">Rol</span>
+      <span style="font-weight:300; font-size:14px;"><?php echo formatText($cia['rol']); ?></span>
+
+      <span style="font-weight:300; font-size:14px;">Dirección</span>
+      <span style="font-weight:300; font-size:14px;"><?php echo formatText($cia['direccion']); ?></span>
+
+      <span style="font-weight:300; font-size:14px;">Teléfono</span>
+      <span style="font-weight:300; font-size:14px;"><?php echo $cia['telefono']; ?></span>
+
+    </div>
+
+    <!-- CONTACTOS -->
+    <div style="
+      display:grid;
+        grid-template-columns:repeat(2, 1fr);
+      gap:10px;
+    ">
+
+      <?php foreach ($cia['contactos'] as $contacto): ?>
+
+      <div style="
+        background:#F9FAFB;
+        border-radius:12px;
+        padding:10px;
+        display:flex;
+        flex-direction:column;
+        gap:8px;
+        justify-content:center;
+      ">
+
+        <div style="font-weight:400; font-size:14px;">
+          <?php echo formatText($contacto['puesto']); ?>
+        </div>
+
+        <div style="font-weight:300; font-size:14px;">
+          <?php echo formatText($contacto['nombre']); ?>
+        </div>
+
+        <div style="color:#6B7280; font-size:12px;">
+          <?php echo $contacto['email']; ?>
+        </div>
+
+      </div>
+
+      <?php endforeach; ?>
+
+    </div>
+
+  </div>
+
+</div>
+
+<?php endforeach; ?>
+<!-- ================= FIN COMPAÑÍAS ================= -->
+
+</div>
+
+      <!-- INFORMACIÓN ADICIONAL -->
+<div class="empresa-card" style="
+  border-radius:16px;
+  height:auto;
+  align-self:flex-start;
+  position:relative;
+  overflow:hidden;
+  padding:20px 32px; 
+  border:1px solid rgba(110,116,130,0.2);
+  margin: 16px 0;
+">
+<?php
+$camposConContenido = 0;
+
+if (!empty($obra['descripcion'])) $camposConContenido++;
+if (!empty($obra['acabados'])) $camposConContenido++;
+if (!empty($obra['observaciones'])) $camposConContenido++;
+if (!empty($obra['descripcionextra'])) $camposConContenido++;
+?>
+
+<!-- Información Adicional -->
+<div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; ">
+  <h3 style="font-size:22px; font-weight:300; color:#374151; margin:0;">
+    Información Adicional
+  </h3>
+</div>
+
+ <div style="display:flex; flex-direction:column; gap:16px; font-size:14px;">
+
+          <?php if (!empty($obra['descripcion'])): ?>
+          <div>
+            <p style="font-weight:300; font-size:16px;">Descripción</p>
+            <p style="font-weight:300;"><?php echo formatSentence($obra['descripcion']); ?></p>
+          </div>
+          <?php endif; ?>
+
+          <?php if (!empty($obra['acabados'])): ?>
+          <div>
+            <p style="font-weight:300; font-size:16px;">Acabados</p>
+            <p style="font-weight:300; font-size:14px;"><?php echo formatSentence($obra['acabados']); ?></p>
+          </div>
+          <?php endif; ?>
+
+          <?php if (!empty($obra['observaciones'])): ?>
+          <div>
+            <p style="font-weight:300; font-size:16px;">Observaciones</p>
+            
+            <p style="font-weight:300; font-size:14px;"><?php echo formatSentence($obra['observaciones']); ?></p>
+          </div>
+          <?php endif; ?>
+
+          <?php if (!empty($obra['descripcionextra'])): ?>
+          <div>
+            <p style="font-weight:300; font-size:16px;">Descripción extra</p>
+            <p style="font-weight:300; font-size:14px;"><?php echo formatSentence($obra['descripcionextra']); ?></p>
+          </div>
+          <?php endif; ?>
+
+        </div>
+
+      </div>
+<?php if (!$isPDF): ?>
+  <div style="
+    margin-top:24px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+  ">
+    <img 
+      src="./logo_bimsa.svg"
+      style="
+        width:300px;
+        opacity:0.35;
+      "
+    />
+  </div>
+<?php endif; ?>
+    </div>
+
+  </div>
+
+</div>
+</div>
+<!-- / Información Adicional -->
+ 
+<!-- /NUEVO BLOQUE INFERIOR -->
